@@ -35,8 +35,7 @@ export default function Donate() {
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) =>
-          setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
         (err) => console.error("Location error:", err)
       );
     }
@@ -265,14 +264,6 @@ export default function Donate() {
           Submit Donation
         </button>
       )}
-
-      {/* View Donations button */}
-      <button
-        onClick={() => navigate("/donate-dashboard")}
-        className="w-full px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 mt-2"
-      >
-        View My Donations
-      </button>
     </div>
   );
 }

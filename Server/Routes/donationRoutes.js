@@ -89,4 +89,33 @@ router.get("/user-donations/:userId", async (req, res) => {
   }
 });
 
+router.get("/all-donations", async (req, res) => {
+  try {
+    const now = new Date();
+
+    // Fetch donations with status Pending
+    const donations = await Donation.find({ status: "Pending" }).lean();
+
+    // Filter foods inside each donation that are not expired
+    const validDonations = donations
+      .map((donation) => {
+        const validFoods = donation.foods.filter((food) => {
+          const expiryTime = new Date(donation.createdAt);
+          expiryTime.setHours(expiryTime.getHours() + food.expiryDuration);
+          return expiryTime > now; // not expired
+        });
+        if (validFoods.length > 0) {
+          return { ...donation, foods: validFoods };
+        }
+        return null;
+      })
+      .filter((d) => d !== null);
+
+    res.status(200).json({ donations: validDonations });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 export default router;
