@@ -1,121 +1,95 @@
 // Routes/DonationRoutes.js
 import express from "express";
-import Donation from "../modals/donationModal.js";
+import { Donation } from "../modals/donationModal.js";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
 
 const router = express.Router();
 
-// Set storage for uploaded files
+// Ensure uploads folder exists
+const uploadDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+
+// Multer storage
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/");
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    cb(null, Date.now() + ext);
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
   },
 });
 
 const upload = multer({ storage });
 
-router.post("/add-donation", upload.array("photos"), async (req, res) => {
+/**
+ * @route POST /api/donations
+ * @desc Create a new donation with multiple foods and photos
+ */
+router.post("/donations", upload.any(), async (req, res) => {
   try {
-    let { userId, foods, location } = req.body;
+    const { userId, lat, lng, address } = req.body;
 
-    if (!userId || !foods || !location) {
-      return res.status(400).json({ message: "All fields are required" });
+    if (!userId || !lat || !lng) {
+      return res.status(400).json({ message: "userId, latitude, and longitude are required" });
     }
 
-    // Normalize foods into an array
-    if (typeof foods === "string") {
-      try {
-        foods = JSON.parse(foods);
-      } catch (err) {
-        return res.status(400).json({ message: "Invalid foods format" });
-      }
-    }
+    // Parse foods array from req.body
+    let foods = [];
+    if (req.body.foods) {
+      // If foods comes as a string (from FormData), parse it
+      foods = typeof req.body.foods === "string" ? JSON.parse(req.body.foods) : req.body.foods;
 
-    // If single object, wrap in array
-    if (!Array.isArray(foods)) {
-      foods = [foods];
-    }
-
-    // Parse location if it's a string
-    if (typeof location === "string") {
-      location = JSON.parse(location);
-    }
-
-    // Initialize each food's photo, status, expiryDuration
-    const foodsList = foods.map((food, idx) => ({
-      name: food.name,
-      quantity: food.quantity,
-      unit: food.unit,
-      photo: null,
-      status: food.status || "Pending",
-      expiryDuration: food.expiryDuration || 0,
-    }));
-
-    // Attach uploaded images
-    if (req.files && req.files.length > 0) {
-      req.files.forEach((file, idx) => {
-        if (foodsList[idx]) foodsList[idx].photo = `uploads/${file.filename}`;
+      // Attach uploaded photos to corresponding food item
+      foods = foods.map((food, index) => {
+        const fileField = `foods[${index}][photo]`;
+        const file = req.files.find((f) => f.fieldname === fileField);
+        if (file) food.photo = `/uploads/${file.filename}`;
+        return food;
       });
     }
 
     const donation = new Donation({
       userId,
-      foods: foodsList,
-      location,
+      location: { lat, lng, address },
+      foods,
     });
 
     await donation.save();
 
-    res.status(201).json({ message: "Donation added successfully", donation });
+    return res.status(201).json({ message: "Donation created successfully ✅", donation });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    console.error("Donation creation error:", err);
+    return res.status(500).json({ message: "Server error ❌" });
   }
 });
 
-router.get("/user-donations/:userId", async (req, res) => {
+
+/**
+ * @route GET /api/donations/requests/:donorId
+ * @desc Get all Receive requests for donations of a specific donor
+ */
+router.get("donations/requests/:donorId", async (req, res) => {
   try {
-    const { userId } = req.params;
-    const donations = await Donation.find({ userId }).sort({ createdAt: -1 });
-    res.status(200).json({ donations });
+    const { donorId } = req.params;
+
+    // Step 1: Get all donations by this donor
+    const donations = await Donation.find({ userId: donorId });
+    const donationIds = donations.map(d => d._id);
+
+    if (donationIds.length === 0) {
+      return res.json({ requests: [] });
+    }
+
+    // Step 2: Get all Receive requests linked to these donations
+    const requests = await Receive.find({ linkedDonation: { $in: donationIds } })
+      .populate("userId", "name email")       // receiver info
+      .populate("linkedDonation");            // donation info
+
+    res.json({ requests });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error fetching donor requests:", err);
+    res.status(500).json({ message: "Server error ❌" });
   }
 });
-
-router.get("/all-donations", async (req, res) => {
-  try {
-    const now = new Date();
-
-    // Fetch donations with status Pending
-    const donations = await Donation.find({ status: "Pending" }).lean();
-
-    // Filter foods inside each donation that are not expired
-    const validDonations = donations
-      .map((donation) => {
-        const validFoods = donation.foods.filter((food) => {
-          const expiryTime = new Date(donation.createdAt);
-          expiryTime.setHours(expiryTime.getHours() + food.expiryDuration);
-          return expiryTime > now; // not expired
-        });
-        if (validFoods.length > 0) {
-          return { ...donation, foods: validFoods };
-        }
-        return null;
-      })
-      .filter((d) => d !== null);
-
-    res.status(200).json({ donations: validDonations });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
 export default router;

@@ -3,9 +3,12 @@ import { Routes, Route, Link } from 'react-router-dom';
 import Login from './login';
 import Signup from './signup';
 import Dashboard from "./Dashboard";
-import Donate from "./Donate";
+import Donate from "./components/DonatePage/DonationPage";
 import Receive from "./Recieve";
 import DonateDashboard from "./DonateDashboard";
+import VolunteerDashboard from "./VolunteerDashboard";
+import AdminDashboard from "./AdminDashboard";
+import PublicDashboard from "./PublicDashboard";
 import './App.css';
 
 function LandingPage() {
@@ -352,6 +355,10 @@ export default function App() {
       <Route path="/donate" element={<Donate />} />
       <Route path="/receive" element={<Receive />} />
       <Route path="/donate-dashboard" element={<DonateDashboard />} />
+       <Route path="/dashboard" element={<DonateDashboard />} /> {/* General User */}
+      <Route path="/volunteer-dashboard" element={<VolunteerDashboard />} />
+      <Route path="/admin-dashboard" element={<AdminDashboard />} />
+      <Route path="/public-dashboard" element={<PublicDashboard />} />
     </Routes>
   );
 }

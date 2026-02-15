@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom"; // <== for navigation
+import { useNavigate } from "react-router-dom";
 
 export default function Login() {
   const [formData, setFormData] = useState({
     username: "",
     password: "",
-    role: "donor", // default
+    role: "general", // default role
   });
   const [message, setMessage] = useState("");
-  const navigate = useNavigate(); // <== hook from react-router-dom
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -33,11 +33,26 @@ export default function Login() {
         localStorage.setItem("userId", data.userId);
         localStorage.setItem("username", data.username);
         localStorage.setItem("role", data.role);
+        localStorage.setItem("accessLevel", data.accessLevel || "");
+        if (data.generalType) {
+          localStorage.setItem("generalType", data.generalType);
+        }
 
         setMessage("Login successful ✅");
 
-        // ✅ forward to /dashboard
-        navigate("/dashboard");
+        // ✅ role-based navigation
+        if (data.role === "volunteer") {
+          navigate("/volunteer-dashboard");
+        } else if (data.role === "general") {
+          navigate("/dashboard");
+        } else if (data.role === "others") {
+          // 🔑 treat 'others' as admin
+          navigate("/admin-dashboard");
+        } else if (data.role === "public") {
+          navigate("/public-dashboard");
+        } else {
+          navigate("/dashboard");
+        }
       } else {
         setMessage(data.message || "Login failed ❌");
       }
@@ -86,11 +101,10 @@ export default function Login() {
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded"
           >
-            <option value="donor">Donor</option>
-            <option value="ngo">NGO</option>
             <option value="volunteer">Volunteer</option>
-            <option value="recipient">Recipient</option>
-            <option value="admin">Admin</option>
+            <option value="general">General User</option>
+            <option value="others">Others</option>
+            <option value="public">Public</option>
           </select>
         </div>
 
